@@ -15,15 +15,14 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${GLM_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS}
 )
  
-target_link_libraries(${PROJECT_NAME} PRIVATE 
+target_link_libraries(${PROJECT_NAME} 
     glad::glad
-    ${SDL2_LIBRARIES}
+    ${SDL2_LIBRARIES} 
 ) 
 
 if (APPLE)
     target_link_libraries(
         ${PROJECT_NAME} 
-        PRIVATE
         "-framework CoreAudio" 
         "-framework AudioToolbox"
         "-framework CoreFoundation"

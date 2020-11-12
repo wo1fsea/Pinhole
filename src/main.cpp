@@ -77,7 +77,7 @@ void init_screen(const char * caption) {
 }
 
 
-int main() {
+int main(int argc, char *args[]){
   init_screen("OpenGL 4.5");
   SDL_Event event;
   bool quit = false;
@@ -89,6 +89,7 @@ int main() {
       }
     }
   }
+  return 0;
 }
 
 

@@ -1,58 +1,67 @@
+#include "camera.h"
 #include "mesh.h"
+#include "model.h"
 #include "pinhole.h"
 #include "shader.h"
+
+// settings
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
+
+// camera
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 
 int main(int argc, char *args[]) {
   if (!pinhole::init()) {
     return 1;
   }
 
-  // build and compile our shader program
-  // ------------------------------------
-  Shader shader("../data/shaders/shader.vs",
-                "../data/shaders/shader.fs"); 
-  // you can name your shader files however you like
+  // tell stb_image.h to flip loaded texture's on the y-axis (before loading
+  // model).
+  stbi_set_flip_vertically_on_load(true);
 
-  // set up vertex data (and buffer(s)) and configure vertex attributes
-  // ------------------------------------------------------------------
-  float vertices[] = {
-      // positions         // colors
-      0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom right
-      -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom left
-      0.0f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f  // top
-  };
+  // configure global opengl state
+  // -----------------------------
+  glEnable(GL_DEPTH_TEST);
 
-  unsigned int VBO, VAO;
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-  // bind the Vertex Array Object first, then bind and set vertex buffer(s), and
-  // then configure vertex attributes(s).
-  glBindVertexArray(VAO);
+  // build and compile shaders
+  // -------------------------
+  Shader ourShader("../data/shaders/model.vs", "../data/shaders/model.fs");
 
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  // position attribute
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
-  glEnableVertexAttribArray(0);
-  // color attribute
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
-
-  // You can unbind the VAO afterwards so other VAO calls won't accidentally
-  // modify this VAO, but this rarely happens. Modifying other VAOs requires a
-  // call to glBindVertexArray anyways so we generally don't unbind VAOs (nor
-  // VBOs) when it's not directly necessary. glBindVertexArray(0);
+  // load models
+  // -----------
+  Model ourModel("../data/model/backpack/backpack.obj");
 
   while (pinhole::update()) {
-    glClearColor(0.f, 0.f, 0.f, 0.f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    // render
+    // ------
+    glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // render the triangle
-    shader.use();
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    // don't forget to enable shader before setting uniforms
+    ourShader.use();
+
+    // view/projection transformations
+    glm::mat4 projection =
+        glm::perspective(glm::radians(camera.Zoom),
+                         (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 view = camera.GetViewMatrix();
+    ourShader.setMat4("projection", projection);
+    ourShader.setMat4("view", view);
+
+    // render the loaded model
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(
+        model,
+        glm::vec3(
+            0.0f, 0.0f,
+            0.0f)); // translate it down so it's at the center of the scene
+    model = glm::scale(
+        model,
+        glm::vec3(1.0f, 1.0f,
+                  1.0f)); // it's a bit too big for our scene, so scale it down
+    ourShader.setMat4("model", model);
+    ourModel.Draw(ourShader);
 
     pinhole::render_frame();
   }

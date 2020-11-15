@@ -12,8 +12,8 @@
 namespace pinhole {
 
 static const int SCREEN_FULLSCREEN = 0;
-static const int SCREEN_WIDTH = 720;
-static const int SCREEN_HEIGHT = 480;
+static const int SCREEN_WIDTH = 800;
+static const int SCREEN_HEIGHT = 600;
 static const char *WINDOW_CAPTION = "pinhole";
 
 static SDL_Window *window = NULL;

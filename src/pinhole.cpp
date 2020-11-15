@@ -9,7 +9,15 @@
 
 #include "glad/glad.h"
 
+#include "camera.h"
+#include "model.h"
+#include "shader.h"
+
 namespace pinhole {
+// camera
+static Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+static Shader *ourShader;
+static Model *ourModel;
 
 static const int SCREEN_FULLSCREEN = 0;
 static const int SCREEN_WIDTH = 800;
@@ -18,6 +26,9 @@ static const char *WINDOW_CAPTION = "pinhole";
 
 static SDL_Window *window = NULL;
 static SDL_GLContext maincontext;
+
+static uint32_t current_ticks = 0;
+static uint32_t last_ticks = 0;
 
 void print_sdl_error() {
   auto error_message = SDL_GetError();
@@ -62,9 +73,10 @@ bool init() {
         WINDOW_CAPTION, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0,
         SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_OPENGL);
   } else {
-    window = SDL_CreateWindow(WINDOW_CAPTION, SDL_WINDOWPOS_UNDEFINED,
+    window = SDL_CreateWindow(WINDOW_CAPTION, 
+            SDL_WINDOWPOS_UNDEFINED,
                               SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH,
-                              SCREEN_HEIGHT, SDL_WINDOW_OPENGL);
+                              SCREEN_HEIGHT, SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_ALWAYS_ON_TOP);
   }
 
   if (window == NULL) {
@@ -81,15 +93,31 @@ bool init() {
   gladLoadGLLoader(SDL_GL_GetProcAddress);
 
   // Check OpenGL properties
-  print_sdl_info(); 
+  print_sdl_info();
 
   // Use v-sync
   SDL_GL_SetSwapInterval(1);
 
+  // tell stb_image.h to flip loaded texture's on the y-axis (before loading
+  // model).
+  stbi_set_flip_vertically_on_load(true);
+
+  // configure global opengl state
+  // -----------------------------
+  glEnable(GL_DEPTH_TEST);
+
   int w, h;
-  SDL_GetWindowSize(window, &w, &h);
+  SDL_GL_GetDrawableSize(window, &w, &h);
   glViewport(0, 0, w, h);
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+  // build and compile shaders
+  // -------------------------
+  ourShader = new Shader("../data/shaders/model.vs", "../data/shaders/model.fs");
+
+  // load models
+  // -----------
+  ourModel = new Model("../data/model/backpack/backpack.obj");
+
   return true;
 }
 
@@ -99,9 +127,73 @@ bool update() {
   SDL_Event event;
   SDL_PollEvent(&event);
 
+  current_ticks = SDL_GetTicks();
+  double delta_ticks = 0;
+  if (last_ticks != 0) {
+    delta_ticks = current_ticks - last_ticks;
+    delta_ticks /= 1000.;
+  }
+
+  last_ticks = current_ticks;
+
+  if (event.type == SDL_KEYDOWN) {
+    // Select surfaces based on key press
+    switch (event.key.keysym.sym) {
+    case SDLK_UP:
+        camera.ProcessKeyboard(Camera_Movement::FORWARD, delta_ticks);
+      break;
+
+    case SDLK_DOWN:
+        camera.ProcessKeyboard(Camera_Movement::BACKWARD, delta_ticks);
+      break;
+
+    case SDLK_LEFT:
+        camera.ProcessKeyboard(Camera_Movement::LEFT, delta_ticks);
+      break;
+
+    case SDLK_RIGHT:
+        camera.ProcessKeyboard(Camera_Movement::RIGHT, delta_ticks);
+      break;
+
+    default:
+      break;
+    }
+  }
+
   return event.type != SDL_QUIT;
 }
 
-void render_frame() { SDL_GL_SwapWindow(window); }
+void render_frame() {
+  // render
+  // ------
+  glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  // don't forget to enable shader before setting uniforms
+  ourShader->use();
+
+  // view/projection transformations
+  glm::mat4 projection =
+      glm::perspective(glm::radians(camera.Zoom),
+                       (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
+  glm::mat4 view = camera.GetViewMatrix();
+  ourShader->setMat4("projection", projection);
+  ourShader->setMat4("view", view);
+
+  // render the loaded model
+  glm::mat4 model = glm::mat4(1.0f);
+  model = glm::translate(
+      model,
+      glm::vec3(0.0f, 0.0f,
+                0.0f)); // translate it down so it's at the center of the scene
+  model = glm::scale(
+      model,
+      glm::vec3(1.0f, 1.0f,
+                1.0f)); // it's a bit too big for our scene, so scale it down
+  ourShader->setMat4("model", model);
+  ourModel->Draw(*ourShader);
+
+  SDL_GL_SwapWindow(window);
+}
 
 } // namespace pinhole
